@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SMB - Firma Remota</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; touch-action: none; }
+        h3 { color: #0f4c81; margin-bottom: 5px; font-size: 20px; }
+        .canvas-container { border: 3px dashed #0f4c81; background: white; margin: 15px auto; max-width: 95%; height: 280px; border-radius: 8px; box-sizing: border-box; }
+        canvas { width: 100%; height: 100%; display: block; background: #fff; cursor: crosshair; }
+        .btn { background: #0f4c81; color: white; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; width: 95%; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-clear { background: #d9534f; margin-top: 15px; padding: 10px; font-size: 14px; }
+        #status { font-size: 11px; color: #666; margin-top: 12px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h3>Firmar Documento</h3>
+    <p style="font-size: 13px; color:#555; margin: 0 0 10px 0;">Sincronizado en tiempo real con la laptop.</p>
+    
+    <div class="canvas-container">
+        <canvas id="canvasCel"></canvas>
+    </div>
+
+    <button class="btn" id="btnEnviar">Enviar Firma de Conformidad</button>
+    <button class="btn btn-clear" id="btnLimpiar">Limpiar Panel</button>
+    <div id="status">Calculando canal de red diario...</div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const canalDiario = urlParams.get('canal') || "smb_fallback_channel";
+
+        // Inicialización del cliente de transmisión local/remoto mas estable
+        const client = new Paho.MQTT.Client("broker.hivemq.com", Number(8000), "cli_" + Math.random().toString(16).substr(2, 6));
+        
+        client.onConnectionLost = () => { document.getElementById('status').innerText = "Reconectando..."; con(); };
+        function con() { client.connect({ onSuccess: () => { document.getElementById('status').innerText = `Canal Diario Activo: ${canalDiario}`; }, useSSL: true, timeout: 5 }); }
+        con();
+
+        const canv = document.getElementById('canvasCel'); const ctx = canv.getContext('2d');
+        let draw = false;
+
+        function resize() { canv.width = canv.offsetWidth; canv.height = canv.offsetHeight; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000000"; }
+        resize(); window.addEventListener('resize', resize);
+
+        function pos(e) { const r = canv.getBoundingClientRect(); return { x: (e.touches?.[0].clientX ?? e.clientX) - r.left, y: (e.touches?.[0].clientY ?? e.clientY) - r.top }; }
+        
+        canv.addEventListener('touchstart', (e) => { draw = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }, {passive:false});
+        canv.addEventListener('touchmove', (e) => { if(!draw) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }, {passive:false});
+        window.addEventListener('touchend', () => draw = false);
+
+        document.getElementById('btnLimpiar').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canv.width, canv.height);
+            send({ accion: "limpiar" });
+        });
+
+        document.getElementById('btnEnviar').addEventListener('click', () => {
+            const imgData = canv.toDataURL("image/png");
+            send({ accion: "firma", img: imgData });
+            document.getElementById('status').innerText = "¡Firma transmitida con éxito!";
+            setTimeout(() => { document.getElementById('status').innerText = `Canal Diario Activo: ${canalDiario}`; }, 2000);
+        });
+
+        function send(obj) {
+            if (client.isConnected()) {
+                const msg = new Paho.MQTT.Message(JSON.stringify(obj));
+                msg.destinationName = canalDiario;
+                client.send(msg);
+            }
+        }
+    </script>
+</body>
+</html>
