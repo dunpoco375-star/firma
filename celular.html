@@ -8,8 +8,7 @@
         body { margin: 0; padding: 20px; font-family: sans-serif; text-align: center; background: #f4f4f4; }
         #canvas { border: 2px dashed #0f4c81; width: 100%; height: 300px; touch-action: none; background: #fff; display: block; border-radius: 8px; }
         .btn { padding: 15px; margin: 10px 0; border: none; border-radius: 8px; color: white; cursor: pointer; width: 100%; font-weight: bold; font-size: 16px; }
-        #resultado { margin-top: 20px; }
-        textarea { width: 100%; height: 80px; margin-top: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; font-size: 10px; }
+        #resultado { margin-top: 20px; font-weight: bold; color: #0f4c81; }
     </style>
 </head>
 <body>
@@ -17,7 +16,7 @@
     <canvas id="canvas"></canvas>
     
     <button class="btn" style="background:#d9534f;" onclick="limpiar()">BORRAR</button>
-    <button class="btn" style="background:#28a745;" onclick="generarTexto()">GENERAR CÓDIGO</button>
+    <button class="btn" style="background:#28a745;" onclick="copiarAlPortapapeles()">GENERAR Y COPIAR CÓDIGO</button>
     
     <div id="resultado"></div>
 
@@ -37,20 +36,28 @@
             return { x: x - r.left, y: y - r.top };
         }
 
+        // Eventos para dibujo
         canvas.onmousedown = (e) => { drawing=true; ctx.beginPath(); ctx.moveTo(getPos(e).x, getPos(e).y); };
         canvas.onmousemove = (e) => { if(drawing) { ctx.lineTo(getPos(e).x, getPos(e).y); ctx.stroke(); } };
         window.onmouseup = () => drawing = false;
-        
         canvas.ontouchstart = (e) => { drawing=true; ctx.beginPath(); ctx.moveTo(getPos(e).x, getPos(e).y); e.preventDefault(); };
         canvas.ontouchmove = (e) => { if(drawing) { ctx.lineTo(getPos(e).x, getPos(e).y); ctx.stroke(); } e.preventDefault(); };
 
-        function limpiar() { ctx.clearRect(0,0,canvas.width, canvas.height); }
+        function limpiar() { ctx.clearRect(0,0,canvas.width, canvas.height); document.getElementById('resultado').innerText = ""; }
 
-        function generarTexto() {
+        // NUEVA FUNCIÓN DE COPIADO AUTOMÁTICO
+        async function copiarAlPortapapeles() {
             const dataUrl = canvas.toDataURL('image/png');
-            document.getElementById('resultado').innerHTML = 
-                "Copia este código y pégalo en la PC:<br>" +
-                "<textarea onclick='this.select()'>" + dataUrl + "</textarea>";
+            const resDiv = document.getElementById('resultado');
+            
+            try {
+                await navigator.clipboard.writeText(dataUrl);
+                resDiv.innerText = "✅ ¡CÓDIGO COPIADO AL PORTAPAPELES! YA PUEDES PEGARLO EN LA PC.";
+                resDiv.style.color = "#28a745";
+            } catch (err) {
+                resDiv.innerText = "❌ Error al copiar. Revisa los permisos de tu navegador.";
+                resDiv.style.color = "#d9534f";
+            }
         }
     </script>
 </body>
